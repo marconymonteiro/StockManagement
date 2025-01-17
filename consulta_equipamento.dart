@@ -121,24 +121,35 @@ class VisualizarFotosScreen extends StatelessWidget {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          final imageUrl = data['imagemUrl'] ?? ''; // Supondo que 'imagemUrl' é o campo das imagens
+          final List<dynamic> imagensUrl =
+              data['imagensUrl'] ?? []; // Lista de URLs das imagens
 
-          if (imageUrl.isEmpty) {
+          if (imagensUrl.isEmpty) {
             return Center(child: Text('Nenhuma foto encontrada!'));
           }
 
-          return Center(
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Center(child: CircularProgressIndicator());
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return Center(child: Icon(Icons.error));
-              },
+          return GridView.builder(
+            padding: const EdgeInsets.all(8.0),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8.0,
+              mainAxisSpacing: 8.0,
             ),
+            itemCount: imagensUrl.length,
+            itemBuilder: (context, index) {
+              final imageUrl = imagensUrl[index];
+              return Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(child: Icon(Icons.error));
+                },
+              );
+            },
           );
         },
       ),
