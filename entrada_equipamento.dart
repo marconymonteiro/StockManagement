@@ -13,7 +13,6 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _numeroSerieController = TextEditingController();
   List<File> _imagens = [];
-
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _selecionarImagem(ImageSource source) async {
@@ -26,13 +25,51 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
     }
   }
 
+  void _visualizarImagem(File imagem) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.file(imagem),
+              SizedBox(height: 16),
+              Text('Deseja excluir esta imagem?'),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _imagens.remove(imagem);
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: Text('Excluir'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _adicionarEquipamento(BuildContext context) async {
     String nome = _nomeController.text.trim();
     String numeroSerie = _numeroSerieController.text.trim();
 
     if (nome.isNotEmpty && numeroSerie.isNotEmpty && _imagens.isNotEmpty) {
       try {
-        // Verifica se o número de série já existe
         final snapshot = await FirebaseFirestore.instance
             .collection('equipamentos')
             .where('numeroSerie', isEqualTo: numeroSerie)
@@ -45,7 +82,6 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
         } else {
           List<String> urlsImagens = [];
 
-          // Faz upload de cada imagem para o Firebase Storage
           for (var imagem in _imagens) {
             String fileName =
                 '${numeroSerie}_${DateTime.now().millisecondsSinceEpoch}_${_imagens.indexOf(imagem)}.jpg';
@@ -55,12 +91,10 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
             UploadTask uploadTask = storageRef.putFile(imagem);
             TaskSnapshot taskSnapshot = await uploadTask;
 
-            // Obtém a URL da imagem
             String imageUrl = await taskSnapshot.ref.getDownloadURL();
             urlsImagens.add(imageUrl);
           }
 
-          // Adiciona o equipamento ao Firestore
           await FirebaseFirestore.instance.collection('equipamentos').add({
             'nome': nome,
             'numeroSerie': numeroSerie,
@@ -118,7 +152,10 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
                     spacing: 8,
                     runSpacing: 8,
                     children: _imagens
-                        .map((imagem) => Image.file(imagem, height: 100, width: 100))
+                        .map((imagem) => GestureDetector(
+                              onTap: () => _visualizarImagem(imagem),
+                              child: Image.file(imagem, height: 100, width: 100, fit: BoxFit.cover),
+                            ))
                         .toList(),
                   )
                 : Text('Nenhuma imagem selecionada'),
