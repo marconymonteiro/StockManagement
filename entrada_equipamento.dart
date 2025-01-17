@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
 
 class EntradaEquipamento extends StatefulWidget {
   @override
@@ -14,6 +16,13 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
   final TextEditingController _numeroSerieController = TextEditingController();
   List<File> _imagens = [];
   final ImagePicker _picker = ImagePicker();
+
+  Future<Uint8List> _compressImage(File imagem) async {
+    final bytes = await imagem.readAsBytes();
+    final image = img.decodeImage(bytes);
+    final compressedImage = img.encodeJpg(image!, quality: 50); // Qualidade ajustada para compactação
+    return Uint8List.fromList(compressedImage);
+  }
 
   Future<void> _selecionarImagem(ImageSource source) async {
     final XFile? imagemSelecionada = await _picker.pickImage(source: source);
@@ -83,12 +92,15 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
           List<String> urlsImagens = [];
 
           for (var imagem in _imagens) {
+            Uint8List compressedBytes = await _compressImage(imagem);
+
             String fileName =
                 '${numeroSerie}_${DateTime.now().millisecondsSinceEpoch}_${_imagens.indexOf(imagem)}.jpg';
             Reference storageRef =
                 FirebaseStorage.instance.ref().child('equipamentos/$fileName');
 
-            UploadTask uploadTask = storageRef.putFile(imagem);
+            UploadTask uploadTask =
+                storageRef.putData(compressedBytes); // Envia os bytes compactados
             TaskSnapshot taskSnapshot = await uploadTask;
 
             String imageUrl = await taskSnapshot.ref.getDownloadURL();
