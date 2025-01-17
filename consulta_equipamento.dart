@@ -98,35 +98,57 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                     final dataFormatada = DateFormat('dd/MM/yyyy HH:mm').format(dataRegistro);
 
                     return Card(
-                    child: ListTile(
-                      leading: miniaturaUrl != null && miniaturaUrl.isNotEmpty
-                          ? Image.network(
-                              miniaturaUrl,
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Icon(Icons.broken_image, size: 50),
-                            )
-                          : Icon(Icons.image, size: 50),
-                      title: Text(nome),
-                      subtitle: Text('Número de Série: $numeroSerie\nData: $dataFormatada'),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _removerEquipamento(equipamento.id, imagensUrl),
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VisualizarFotosScreen(
-                              equipamentoId: equipamento.id,
+                      child: ListTile(
+                        leading: miniaturaUrl != null && miniaturaUrl.isNotEmpty
+                            ? Image.network(
+                                miniaturaUrl,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Icon(Icons.broken_image, size: 50),
+                              )
+                            : Icon(Icons.image, size: 50),
+                        title: Text(nome),
+                        subtitle: Text('Número de Série: $numeroSerie\nData: $dataFormatada'),
+                        trailing: IconButton(
+                          icon: Image.asset('ios/Assets/stock_out.png', width: 65, height: 65),
+                          onPressed: () async {
+                            final confirmar = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text('Confirmar remoção'),
+                                content: Text('Deseja remover o item do estoque?'),
+                                actions: [
+                                  TextButton(
+                                    child: Text('Cancelar'),
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                  ),
+                                  TextButton(
+                                    child: Text('Remover'),
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirmar == true) {
+                              _removerEquipamento(equipamento.id, imagensUrl);
+                            }
+                          },
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VisualizarFotosScreen(
+                                equipamentoId: equipamento.id,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
+                          );
+                        },
+                      ),
+                    );
                   },
                 );
               },
