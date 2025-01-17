@@ -18,12 +18,14 @@ class HomePage extends StatelessWidget {
                 },
                 child: Text('Entrada de Equipamento'),
               ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(context, '/saida');
                 },
                 child: Text('Saída de Equipamento'),
               ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(context, '/consulta');
