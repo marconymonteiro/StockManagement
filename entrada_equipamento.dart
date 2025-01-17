@@ -12,17 +12,16 @@ class EntradaEquipamento extends StatefulWidget {
 class _EntradaEquipamentoState extends State<EntradaEquipamento> {
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _numeroSerieController = TextEditingController();
-  File? _imagem;
+  List<File> _imagens = [];
 
   final ImagePicker _picker = ImagePicker();
 
-  Future<void> _selecionarImagem() async {
-    final XFile? imagemSelecionada =
-        await _picker.pickImage(source: ImageSource.gallery);
+  Future<void> _selecionarImagem(ImageSource source) async {
+    final XFile? imagemSelecionada = await _picker.pickImage(source: source);
 
     if (imagemSelecionada != null) {
       setState(() {
-        _imagem = File(imagemSelecionada.path);
+        _imagens.add(File(imagemSelecionada.path));
       });
     }
   }
@@ -31,7 +30,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
     String nome = _nomeController.text.trim();
     String numeroSerie = _numeroSerieController.text.trim();
 
-    if (nome.isNotEmpty && numeroSerie.isNotEmpty && _imagem != null) {
+    if (nome.isNotEmpty && numeroSerie.isNotEmpty && _imagens.isNotEmpty) {
       try {
         // Verifica se o número de série já existe
         final snapshot = await FirebaseFirestore.instance
@@ -44,25 +43,29 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
             SnackBar(content: Text('Equipamento já se encontra no pátio.')),
           );
         } else {
-          // Faz upload da imagem para o Firebase Storage
-          
-          String fileName = '${numeroSerie}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          Reference storageRef = FirebaseStorage.instance.ref().child('equipamentos/$fileName');
+          List<String> urlsImagens = [];
 
-          print('Tentando salvar imagem no caminho: equipamentos/$fileName');
+          // Faz upload de cada imagem para o Firebase Storage
+          for (var imagem in _imagens) {
+            String fileName =
+                '${numeroSerie}_${DateTime.now().millisecondsSinceEpoch}_${_imagens.indexOf(imagem)}.jpg';
+            Reference storageRef =
+                FirebaseStorage.instance.ref().child('equipamentos/$fileName');
 
-          UploadTask uploadTask = storageRef.putFile(_imagem!);
-          TaskSnapshot taskSnapshot = await uploadTask;
+            UploadTask uploadTask = storageRef.putFile(imagem);
+            TaskSnapshot taskSnapshot = await uploadTask;
 
-          // Obtém a URL da imagem
-          String imageUrl = await taskSnapshot.ref.getDownloadURL();
+            // Obtém a URL da imagem
+            String imageUrl = await taskSnapshot.ref.getDownloadURL();
+            urlsImagens.add(imageUrl);
+          }
 
           // Adiciona o equipamento ao Firestore
           await FirebaseFirestore.instance.collection('equipamentos').add({
             'nome': nome,
             'numeroSerie': numeroSerie,
             'data': DateTime.now(),
-            'imagemUrl': imageUrl,
+            'imagensUrl': urlsImagens,
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -71,7 +74,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
           _nomeController.clear();
           _numeroSerieController.clear();
           setState(() {
-            _imagem = null;
+            _imagens.clear();
           });
         }
       } catch (error) {
@@ -81,7 +84,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Por favor, preencha todos os campos e selecione uma imagem.')),
+        SnackBar(content: Text('Por favor, preencha todos os campos e selecione pelo menos uma imagem.')),
       );
     }
   }
@@ -110,13 +113,28 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
               ),
             ),
             SizedBox(height: 16),
-            _imagem != null
-                ? Image.file(_imagem!, height: 150)
+            _imagens.isNotEmpty
+                ? Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _imagens
+                        .map((imagem) => Image.file(imagem, height: 100, width: 100))
+                        .toList(),
+                  )
                 : Text('Nenhuma imagem selecionada'),
             SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _selecionarImagem,
-              child: Text('Selecionar Imagem'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () => _selecionarImagem(ImageSource.gallery),
+                  child: Text('Galeria'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _selecionarImagem(ImageSource.camera),
+                  child: Text('Câmera'),
+                ),
+              ],
             ),
             SizedBox(height: 16),
             ElevatedButton(
