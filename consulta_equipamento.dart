@@ -1,5 +1,7 @@
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class ConsultaEquipamento extends StatefulWidget {
   @override
@@ -8,6 +10,32 @@ class ConsultaEquipamento extends StatefulWidget {
 
 class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
   String searchQuery = '';
+
+  Future<void> _removerEquipamento(String equipamentoId, List<String> imagensUrl) async {
+    try {
+      // Excluir imagens do Firebase Storage
+      for (var imageUrl in imagensUrl) {
+        final path = _getStoragePath(imageUrl);
+        await FirebaseStorage.instance.ref(path).delete();
+      }
+
+      // Remover equipamento do Firestore
+      await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).delete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Equipamento removido com sucesso!')),
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao remover equipamento: $error')),
+      );
+    }
+  }
+
+  String _getStoragePath(String url) {
+    final uri = Uri.parse(url);
+    return uri.pathSegments.skipWhile((segment) => segment != 'o').skip(1).join('/').replaceAll('%2F', '/');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,16 +53,14 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
               ),
               onChanged: (value) {
                 setState(() {
-                  searchQuery = value.toLowerCase(); // Ignora maiúsculas/minúsculas
+                  searchQuery = value.toLowerCase();
                 });
               },
             ),
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('equipamentos')
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection('equipamentos').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
@@ -47,10 +73,8 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                 final equipamentos = snapshot.data!.docs.where((equipamento) {
                   final data = equipamento.data() as Map<String, dynamic>;
                   final nome = (data['nome'] ?? '').toString().toLowerCase();
-                  final numeroSerie =
-                      (data['numeroSerie'] ?? '').toString().toLowerCase();
-                  return nome.contains(searchQuery) ||
-                      numeroSerie.contains(searchQuery);
+                  final numeroSerie = (data['numeroSerie'] ?? '').toString().toLowerCase();
+                  return nome.contains(searchQuery) || numeroSerie.contains(searchQuery);
                 }).toList();
 
                 if (equipamentos.isEmpty) {
@@ -64,16 +88,32 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                     final data = equipamento.data() as Map<String, dynamic>;
 
                     final nome = data['nome'] ?? 'Sem Nome';
-                    final numeroSerie =
-                        data['numeroSerie'] ?? 'Sem Número de Série';
+                    final numeroSerie = data['numeroSerie'] ?? 'Sem Número de Série';
+                    final imagensUrl = List<String>.from(data['imagensUrl'] ?? []);
+                    final miniaturaUrl = imagensUrl.isNotEmpty ? imagensUrl[0] : null;
                     final dataRegistro = data.containsKey('data')
                         ? (data['data'] as Timestamp).toDate()
                         : DateTime.now();
 
-                    return ListTile(
+                    final dataFormatada = DateFormat('dd/MM/yyyy HH:mm').format(dataRegistro);
+
+                    return Card(
+                    child: ListTile(
+                      leading: miniaturaUrl != null && miniaturaUrl.isNotEmpty
+                          ? Image.network(
+                              miniaturaUrl,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Icon(Icons.broken_image, size: 50),
+                            )
+                          : Icon(Icons.image, size: 50),
                       title: Text(nome),
-                      subtitle: Text(
-                        'Número de Série: $numeroSerie\nData: ${dataRegistro.toLocal()}',
+                      subtitle: Text('Número de Série: $numeroSerie\nData: $dataFormatada'),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _removerEquipamento(equipamento.id, imagensUrl),
                       ),
                       onTap: () {
                         Navigator.push(
@@ -85,7 +125,8 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                           ),
                         );
                       },
-                    );
+                    ),
+                  );
                   },
                 );
               },
@@ -107,10 +148,7 @@ class VisualizarFotosScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text('Fotos do Equipamento')),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance
-            .collection('equipamentos')
-            .doc(equipamentoId)
-            .get(),
+        future: FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
@@ -121,8 +159,7 @@ class VisualizarFotosScreen extends StatelessWidget {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          final List<dynamic> imagensUrl =
-              data['imagensUrl'] ?? []; // Lista de URLs das imagens
+          final List<dynamic> imagensUrl = data['imagensUrl'] ?? [];
 
           if (imagensUrl.isEmpty) {
             return Center(child: Text('Nenhuma foto encontrada!'));
