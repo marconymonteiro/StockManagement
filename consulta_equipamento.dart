@@ -106,46 +106,39 @@ class VisualizarFotosScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Fotos do Equipamento')),
-      body: FutureBuilder<QuerySnapshot>(
+      body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance
             .collection('equipamentos')
             .doc(equipamentoId)
-            .collection('fotos')
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || !snapshot.data!.exists) {
             return Center(child: Text('Nenhuma foto encontrada!'));
           }
 
-          final fotos = snapshot.data!.docs;
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          final imageUrl = data['imagemUrl'] ?? ''; // Supondo que 'imagemUrl' é o campo das imagens
 
-          return GridView.builder(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8.0,
-              mainAxisSpacing: 8.0,
+          if (imageUrl.isEmpty) {
+            return Center(child: Text('Nenhuma foto encontrada!'));
+          }
+
+          return Center(
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(child: CircularProgressIndicator());
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return Center(child: Icon(Icons.error));
+              },
             ),
-            itemCount: fotos.length,
-            itemBuilder: (context, index) {
-              final foto = fotos[index];
-              final url = foto['url'] ?? ''; // Assumindo que as fotos têm a chave 'url'
-
-              return Image.network(
-                url,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(child: CircularProgressIndicator());
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Center(child: Icon(Icons.error));
-                },
-              );
-            },
           );
         },
       ),
