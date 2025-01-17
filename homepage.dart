@@ -12,6 +12,14 @@ class HomePage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Logo do cliente - Imagem acima dos botões
+            Image.asset(
+              'ios/Assets/logo_cliente.png', // Caminho para a logo do cliente
+              width: 150, // Ajuste o tamanho conforme necessário
+              height: 150,
+            ),
+            SizedBox(height: 30), // Espaçamento entre a logo e os botões
+              
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(context, '/entrada');
