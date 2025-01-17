@@ -49,7 +49,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  TextButton(
+                  ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
                     },
@@ -62,7 +62,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
                       });
                       Navigator.pop(context);
                     },
-                    child: Text('Excluir'),
+                    child: Text('Excluir', style: (TextStyle(color: Colors.red))),
                   ),
                 ],
               ),
