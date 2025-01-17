@@ -1,43 +1,149 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ConsultaEquipamento extends StatelessWidget {
+class ConsultaEquipamento extends StatefulWidget {
+  @override
+  _ConsultaEquipamentoState createState() => _ConsultaEquipamentoState();
+}
+
+class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
+  String searchQuery = '';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Consulta de Equipamento')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('equipamentos').snapshots(),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                labelText: 'Pesquisar por Nome ou Número de Série',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value.toLowerCase(); // Ignora maiúsculas/minúsculas
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('equipamentos')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(child: Text('Nenhum equipamento encontrado!'));
+                }
+
+                final equipamentos = snapshot.data!.docs.where((equipamento) {
+                  final data = equipamento.data() as Map<String, dynamic>;
+                  final nome = (data['nome'] ?? '').toString().toLowerCase();
+                  final numeroSerie =
+                      (data['numeroSerie'] ?? '').toString().toLowerCase();
+                  return nome.contains(searchQuery) ||
+                      numeroSerie.contains(searchQuery);
+                }).toList();
+
+                if (equipamentos.isEmpty) {
+                  return Center(child: Text('Nenhum equipamento encontrado!'));
+                }
+
+                return ListView.builder(
+                  itemCount: equipamentos.length,
+                  itemBuilder: (context, index) {
+                    final equipamento = equipamentos[index];
+                    final data = equipamento.data() as Map<String, dynamic>;
+
+                    final nome = data['nome'] ?? 'Sem Nome';
+                    final numeroSerie =
+                        data['numeroSerie'] ?? 'Sem Número de Série';
+                    final dataRegistro = data.containsKey('data')
+                        ? (data['data'] as Timestamp).toDate()
+                        : DateTime.now();
+
+                    return ListTile(
+                      title: Text(nome),
+                      subtitle: Text(
+                        'Número de Série: $numeroSerie\nData: ${dataRegistro.toLocal()}',
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => VisualizarFotosScreen(
+                              equipamentoId: equipamento.id,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class VisualizarFotosScreen extends StatelessWidget {
+  final String equipamentoId;
+
+  VisualizarFotosScreen({required this.equipamentoId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Fotos do Equipamento')),
+      body: FutureBuilder<QuerySnapshot>(
+        future: FirebaseFirestore.instance
+            .collection('equipamentos')
+            .doc(equipamentoId)
+            .collection('fotos')
+            .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(child: Text('Nenhum equipamento encontrado!'));
+            return Center(child: Text('Nenhuma foto encontrada!'));
           }
 
-          final equipamentos = snapshot.data!.docs;
+          final fotos = snapshot.data!.docs;
 
-          return ListView.builder(
-            itemCount: equipamentos.length,
+          return GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8.0,
+              mainAxisSpacing: 8.0,
+            ),
+            itemCount: fotos.length,
             itemBuilder: (context, index) {
-              final equipamento = equipamentos[index];
-              final data = equipamento.data() as Map<String, dynamic>?;
+              final foto = fotos[index];
+              final url = foto['url'] ?? ''; // Assumindo que as fotos têm a chave 'url'
 
-              final nome = data?['nome'] ?? 'Sem Nome';
-              final numeroSerie = data?.containsKey('numeroSerie') == true
-                  ? data!['numeroSerie']
-                  : 'Sem Número de Série';
-              final dataRegistro = data?.containsKey('data') == true
-                  ? (data!['data'] as Timestamp).toDate()
-                  : DateTime.now();
-
-              return ListTile(
-                title: Text(nome),
-                subtitle: Text(
-                  'Número de Série: $numeroSerie\nData: ${dataRegistro.toLocal()}',
-                ),
+              return Image.network(
+                url,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(child: CircularProgressIndicator());
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(child: Icon(Icons.error));
+                },
               );
             },
           );
