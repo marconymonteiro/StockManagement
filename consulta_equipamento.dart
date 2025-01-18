@@ -12,6 +12,7 @@ class ConsultaEquipamento extends StatefulWidget {
 }
 
 class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
+  
   String searchQuery = '';
 
   Future<void> _removerEquipamento(String equipamentoId, List<String> imagensUrl) async {
@@ -162,6 +163,9 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
   }
 }
 
+//  final List<String> imagensUrl;
+
+
 class DetalhesEquipamentoScreen extends StatelessWidget {
   final String equipamentoId;
   final List<String> imagensUrl;
@@ -201,39 +205,111 @@ class DetalhesEquipamentoScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Detalhes do Equipamento')),
-      body: ListView.builder(
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: Text('Detalhes do Equipamento')),
+    body: Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3, // Número de colunas
+          crossAxisSpacing: 8.0,
+          mainAxisSpacing: 8.0,
+          childAspectRatio: 1.0,
+        ),
         itemCount: imagensUrl.length,
         itemBuilder: (context, index) {
           final imageUrl = imagensUrl[index];
-          return Column(
-            children: [
-              Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(child: CircularProgressIndicator());
-                },
+
+          return GestureDetector(
+            onTap: () async {
+              final confirmar = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text('Opções da Imagem'),
+                  content: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                  ),
+                  actions: [
+                    TextButton(
+                      child: Text('Cancelar'),
+                      onPressed: () => Navigator.of(context).pop(false),
+                    ),
+                    TextButton(
+                      child: Text('Excluir', style: TextStyle(color: Colors.red)),
+                      onPressed: () => Navigator.of(context).pop(true),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmar == true) {
+                _removerImagem(equipamentoId, imageUrl);
+              }
+            },
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              width: 100,
+              height: 100,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(child: CircularProgressIndicator());
+              },
+              errorBuilder: (context, error, stackTrace) => Icon(
+                Icons.broken_image,
+                size: 50,
               ),
-              IconButton(
-                icon: Icon(Icons.delete),
-                onPressed: () {
-                  _removerImagem(equipamentoId, imageUrl);
-                },
-              ),
-            ],
+            ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
-        onPressed: () {
-          _adicionarImagem(equipamentoId);
-        },
+    ),
+    bottomNavigationBar: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          ElevatedButton.icon(
+            onPressed: () => _adicionarImagemCamera(equipamentoId),
+            icon: Icon(Icons.camera_alt),
+            label: Text('Câmera'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => _adicionarImagemGaleria(equipamentoId),
+            icon: Icon(Icons.photo_library),
+            label: Text('Galeria'),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+Future<void> _adicionarImagemCamera(String equipamentoId) async {
+  final picker = ImagePicker();
+  final image = await picker.pickImage(source: ImageSource.camera);
+  if (image == null) return;
+  await _uploadImagem(equipamentoId, File(image.path));
+}
+
+Future<void> _adicionarImagemGaleria(String equipamentoId) async {
+  final picker = ImagePicker();
+  final image = await picker.pickImage(source: ImageSource.gallery);
+  if (image == null) return;
+  await _uploadImagem(equipamentoId, File(image.path));
+}
+
+Future<void> _uploadImagem(String equipamentoId, File file) async {
+  final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+  final storageRef = FirebaseStorage.instance.ref().child('equipamentos/$equipamentoId/$fileName');
+
+  await storageRef.putFile(file);
+  final imageUrl = await storageRef.getDownloadURL();
+
+  await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).update({
+    'imagensUrl': FieldValue.arrayUnion([imageUrl]),
+  });
+}
 }
