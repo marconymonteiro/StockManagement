@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 class ConsultaEquipamento extends StatefulWidget {
@@ -13,13 +16,11 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
 
   Future<void> _removerEquipamento(String equipamentoId, List<String> imagensUrl) async {
     try {
-      // Excluir imagens do Firebase Storage
       for (var imageUrl in imagensUrl) {
         final path = _getStoragePath(imageUrl);
         await FirebaseStorage.instance.ref(path).delete();
       }
 
-      // Remover equipamento do Firestore
       await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).delete();
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,13 +103,13 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                         leading: miniaturaUrl != null && miniaturaUrl.isNotEmpty
                             ? Image.network(
                                 miniaturaUrl,
-                                width: 50,
-                                height: 50,
+                                width: 70,
+                                height: 70,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     Icon(Icons.broken_image, size: 50),
                               )
-                            : Icon(Icons.image, size: 50),
+                            : Icon(Icons.image, size: 70),
                         title: Text(nome),
                         subtitle: Text('Número de Série: $numeroSerie\nData: $dataFormatada'),
                         trailing: IconButton(
@@ -125,7 +126,7 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                                     onPressed: () => Navigator.of(context).pop(false),
                                   ),
                                   TextButton(
-                                    child: Text('Remover'),
+                                    child: Text('Remover', style: (TextStyle(color: Colors.red))),
                                     onPressed: () => Navigator.of(context).pop(true),
                                   ),
                                 ],
@@ -141,8 +142,9 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => VisualizarFotosScreen(
+                              builder: (context) => DetalhesEquipamentoScreen(
                                 equipamentoId: equipamento.id,
+                                imagensUrl: imagensUrl,
                               ),
                             ),
                           );
@@ -160,56 +162,76 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
   }
 }
 
-class VisualizarFotosScreen extends StatelessWidget {
+class DetalhesEquipamentoScreen extends StatelessWidget {
   final String equipamentoId;
+  final List<String> imagensUrl;
 
-  VisualizarFotosScreen({required this.equipamentoId});
+  DetalhesEquipamentoScreen({required this.equipamentoId, required this.imagensUrl});
+
+  Future<void> _adicionarImagem(String equipamentoId) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image == null) return;
+
+    final file = File(image.path);
+    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+    final storageRef = FirebaseStorage.instance.ref().child('equipamentos/$equipamentoId/$fileName');
+
+    await storageRef.putFile(file);
+    final imageUrl = await storageRef.getDownloadURL();
+
+    await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).update({
+      'imagensUrl': FieldValue.arrayUnion([imageUrl]),
+    });
+  }
+
+  Future<void> _removerImagem(String equipamentoId, String imageUrl) async {
+    final path = _getStoragePath(imageUrl);
+    await FirebaseStorage.instance.ref(path).delete();
+
+    await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).update({
+      'imagensUrl': FieldValue.arrayRemove([imageUrl]),
+    });
+  }
+
+  String _getStoragePath(String url) {
+    final uri = Uri.parse(url);
+    return uri.pathSegments.skipWhile((segment) => segment != 'o').skip(1).join('/').replaceAll('%2F', '/');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Fotos do Equipamento')),
-      body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).get(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(child: Text('Nenhuma foto encontrada!'));
-          }
-
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          final List<dynamic> imagensUrl = data['imagensUrl'] ?? [];
-
-          if (imagensUrl.isEmpty) {
-            return Center(child: Text('Nenhuma foto encontrada!'));
-          }
-
-          return GridView.builder(
-            padding: const EdgeInsets.all(8.0),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8.0,
-              mainAxisSpacing: 8.0,
-            ),
-            itemCount: imagensUrl.length,
-            itemBuilder: (context, index) {
-              final imageUrl = imagensUrl[index];
-              return Image.network(
+      appBar: AppBar(title: Text('Detalhes do Equipamento')),
+      body: ListView.builder(
+        itemCount: imagensUrl.length,
+        itemBuilder: (context, index) {
+          final imageUrl = imagensUrl[index];
+          return Column(
+            children: [
+              Image.network(
                 imageUrl,
                 fit: BoxFit.cover,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Center(child: CircularProgressIndicator());
                 },
-                errorBuilder: (context, error, stackTrace) {
-                  return Center(child: Icon(Icons.error));
+              ),
+              IconButton(
+                icon: Icon(Icons.delete),
+                onPressed: () {
+                  _removerImagem(equipamentoId, imageUrl);
                 },
-              );
-            },
+              ),
+            ],
           );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: () {
+          _adicionarImagem(equipamentoId);
         },
       ),
     );
