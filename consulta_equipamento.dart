@@ -12,7 +12,6 @@ class ConsultaEquipamento extends StatefulWidget {
 }
 
 class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
-  
   String searchQuery = '';
 
   Future<void> _removerEquipamento(String equipamentoId, List<String> imagensUrl) async {
@@ -145,7 +144,6 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
                             MaterialPageRoute(
                               builder: (context) => DetalhesEquipamentoScreen(
                                 equipamentoId: equipamento.id,
-                                imagensUrl: imagensUrl,
                               ),
                             ),
                           );
@@ -163,153 +161,169 @@ class _ConsultaEquipamentoState extends State<ConsultaEquipamento> {
   }
 }
 
-//  final List<String> imagensUrl;
-
-
-class DetalhesEquipamentoScreen extends StatelessWidget {
+class DetalhesEquipamentoScreen extends StatefulWidget {
   final String equipamentoId;
-  final List<String> imagensUrl;
 
-  DetalhesEquipamentoScreen({required this.equipamentoId, required this.imagensUrl});
+  DetalhesEquipamentoScreen({required this.equipamentoId});
 
-  Future<void> _adicionarImagem(String equipamentoId) async {
+  @override
+  _DetalhesEquipamentoScreenState createState() =>
+      _DetalhesEquipamentoScreenState();
+}
+
+class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
+  late Future<DocumentSnapshot> _equipamentoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _equipamentoFuture = FirebaseFirestore.instance
+        .collection('equipamentos')
+        .doc(widget.equipamentoId)
+        .get();
+  }
+
+  Future<void> _adicionarImagem(String source) async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image = await picker.pickImage(
+        source: source == 'camera' ? ImageSource.camera : ImageSource.gallery);
 
     if (image == null) return;
 
     final file = File(image.path);
     final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    final storageRef = FirebaseStorage.instance.ref().child('equipamentos/$equipamentoId/$fileName');
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('equipamentos/${widget.equipamentoId}/$fileName');
 
     await storageRef.putFile(file);
     final imageUrl = await storageRef.getDownloadURL();
 
-    await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).update({
+    await FirebaseFirestore.instance
+        .collection('equipamentos')
+        .doc(widget.equipamentoId)
+        .update({
       'imagensUrl': FieldValue.arrayUnion([imageUrl]),
     });
-  }
 
-  Future<void> _removerImagem(String equipamentoId, String imageUrl) async {
-    final path = _getStoragePath(imageUrl);
-    await FirebaseStorage.instance.ref(path).delete();
-
-    await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).update({
-      'imagensUrl': FieldValue.arrayRemove([imageUrl]),
+    setState(() {
+      _equipamentoFuture = FirebaseFirestore.instance
+          .collection('equipamentos')
+          .doc(widget.equipamentoId)
+          .get();
     });
   }
 
-  String _getStoragePath(String url) {
-    final uri = Uri.parse(url);
-    return uri.pathSegments.skipWhile((segment) => segment != 'o').skip(1).join('/').replaceAll('%2F', '/');
+  Future<void> _removerImagem(String imageUrl) async {
+    final path = Uri.parse(imageUrl).pathSegments
+        .skipWhile((segment) => segment != 'o')
+        .skip(1)
+        .join('/');
+
+    await FirebaseStorage.instance.ref(path).delete();
+
+    await FirebaseFirestore.instance
+        .collection('equipamentos')
+        .doc(widget.equipamentoId)
+        .update({
+      'imagensUrl': FieldValue.arrayRemove([imageUrl]),
+    });
+
+    setState(() {
+      _equipamentoFuture = FirebaseFirestore.instance
+          .collection('equipamentos')
+          .doc(widget.equipamentoId)
+          .get();
+    });
   }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(title: Text('Detalhes do Equipamento')),
-    body: Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: GridView.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3, // Número de colunas
-          crossAxisSpacing: 8.0,
-          mainAxisSpacing: 8.0,
-          childAspectRatio: 1.0,
-        ),
-        itemCount: imagensUrl.length,
-        itemBuilder: (context, index) {
-          final imageUrl = imagensUrl[index];
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Detalhes do Equipamento')),
+      body: FutureBuilder<DocumentSnapshot>(
+        future: _equipamentoFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
 
-          return GestureDetector(
-            onTap: () async {
-              final confirmar = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text('Opções da Imagem'),
-                  content: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return Center(child: Text('Equipamento não encontrado.'));
+          }
+
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          final imagensUrl = List<String>.from(data['imagensUrl'] ?? []);
+
+          return Column(
+            children: [
+              Expanded(
+                child: GridView.builder(
+                  padding: EdgeInsets.all(8.0),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 8.0,
+                    mainAxisSpacing: 8.0,
                   ),
-                  actions: [
-                    TextButton(
-                      child: Text('Cancelar'),
-                      onPressed: () => Navigator.of(context).pop(false),
+                  itemCount: imagensUrl.length,
+                  itemBuilder: (context, index) {
+                    final imageUrl = imagensUrl[index];
+
+                    return GestureDetector(
+                      onTap: () async {
+                        final confirmar = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Excluir Imagem'),
+                            content: Image.network(imageUrl, fit: BoxFit.contain),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: Text('Cancelar'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: Text('Excluir', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmar == true) {
+                          await _removerImagem(imageUrl);
+                        }
+                      },
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _adicionarImagem('camera'),
+                      icon: Icon(Icons.camera_alt),
+                      label: Text('Camera'),
                     ),
-                    TextButton(
-                      child: Text('Excluir', style: TextStyle(color: Colors.red)),
-                      onPressed: () => Navigator.of(context).pop(true),
+                    ElevatedButton.icon(
+                      onPressed: () => _adicionarImagem('galeria'),
+                      icon: Icon(Icons.photo_library),
+                      label: Text('Galeria'),
                     ),
                   ],
                 ),
-              );
-
-              if (confirmar == true) {
-                _removerImagem(equipamentoId, imageUrl);
-              }
-            },
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              width: 100,
-              height: 100,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Center(child: CircularProgressIndicator());
-              },
-              errorBuilder: (context, error, stackTrace) => Icon(
-                Icons.broken_image,
-                size: 50,
               ),
-            ),
+            ],
           );
         },
       ),
-    ),
-    bottomNavigationBar: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          ElevatedButton.icon(
-            onPressed: () => _adicionarImagemCamera(equipamentoId),
-            icon: Icon(Icons.camera_alt),
-            label: Text('Câmera'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => _adicionarImagemGaleria(equipamentoId),
-            icon: Icon(Icons.photo_library),
-            label: Text('Galeria'),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-Future<void> _adicionarImagemCamera(String equipamentoId) async {
-  final picker = ImagePicker();
-  final image = await picker.pickImage(source: ImageSource.camera);
-  if (image == null) return;
-  await _uploadImagem(equipamentoId, File(image.path));
-}
-
-Future<void> _adicionarImagemGaleria(String equipamentoId) async {
-  final picker = ImagePicker();
-  final image = await picker.pickImage(source: ImageSource.gallery);
-  if (image == null) return;
-  await _uploadImagem(equipamentoId, File(image.path));
-}
-
-Future<void> _uploadImagem(String equipamentoId, File file) async {
-  final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-  final storageRef = FirebaseStorage.instance.ref().child('equipamentos/$equipamentoId/$fileName');
-
-  await storageRef.putFile(file);
-  final imageUrl = await storageRef.getDownloadURL();
-
-  await FirebaseFirestore.instance.collection('equipamentos').doc(equipamentoId).update({
-    'imagensUrl': FieldValue.arrayUnion([imageUrl]),
-  });
-}
+    );
+  }
 }
