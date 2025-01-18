@@ -206,6 +206,10 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
       'imagensUrl': FieldValue.arrayUnion([imageUrl]),
     });
 
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Imagem adicionada com sucesso!')),
+    );
+
     setState(() {
       _equipamentoFuture = FirebaseFirestore.instance
           .collection('equipamentos')
@@ -228,6 +232,10 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
         .update({
       'imagensUrl': FieldValue.arrayRemove([imageUrl]),
     });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Imagem excluída com sucesso!')),
+    );
 
     setState(() {
       _equipamentoFuture = FirebaseFirestore.instance
@@ -261,7 +269,7 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
                 child: GridView.builder(
                   padding: EdgeInsets.all(8.0),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
+                    crossAxisCount: 2,
                     crossAxisSpacing: 8.0,
                     mainAxisSpacing: 8.0,
                   ),
@@ -310,7 +318,7 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
                     ElevatedButton.icon(
                       onPressed: () => _adicionarImagem('camera'),
                       icon: Icon(Icons.camera_alt),
-                      label: Text('Camera'),
+                      label: Text('Câmera'),
                     ),
                     ElevatedButton.icon(
                       onPressed: () => _adicionarImagem('galeria'),
@@ -318,7 +326,7 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
                       label: Text('Galeria'),
                     ),
                   ],
-                ),
+                )
               ),
             ],
           );
