@@ -246,28 +246,33 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Detalhes do Equipamento')),
-      body: FutureBuilder<DocumentSnapshot>(
-        future: _equipamentoFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: Text('Detalhes do Equipamento')),
+    body: FutureBuilder<DocumentSnapshot>(
+      future: _equipamentoFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(child: Text('Equipamento não encontrado.'));
-          }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Center(child: Text('Equipamento não encontrado.'));
+        }
 
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          final imagensUrl = List<String>.from(data['imagensUrl'] ?? []);
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final imagensUrl = List<String>.from(data['imagensUrl'] ?? []);
 
-          return Column(
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
+              // GridView com tamanho ajustável
+              Padding(
+                padding: EdgeInsets.all(8.0),
                 child: GridView.builder(
-                  padding: EdgeInsets.all(8.0),
+                  shrinkWrap: true, // Faz o GridView ocupar apenas o espaço necessário
+                  physics: NeverScrollableScrollPhysics(), // Desativa o scroll interno do GridView
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 8.0,
@@ -304,34 +309,38 @@ class _DetalhesEquipamentoScreenState extends State<DetalhesEquipamentoScreen> {
                       child: Image.network(
                         imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image),
+                        errorBuilder: (context, error, stackTrace) =>
+                            Icon(Icons.broken_image),
                       ),
                     );
                   },
                 ),
               ),
+              // Espaço entre o grid e os botões
               Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: () => _adicionarImagem('camera'),
-                      icon: Icon(Icons.camera_alt),
-                      label: Text('Câmera'),
-                    ),
                     ElevatedButton.icon(
                       onPressed: () => _adicionarImagem('galeria'),
                       icon: Icon(Icons.photo_library),
                       label: Text('Galeria'),
                     ),
+                    ElevatedButton.icon(
+                      onPressed: () => _adicionarImagem('camera'),
+                      icon: Icon(Icons.camera_alt),
+                      label: Text('Câmera'),
+                    ),
                   ],
-                )
+                ),
               ),
+              SizedBox(height: 16), // Espaço adicional para evitar o problema do Snackbar
             ],
-          );
-        },
-      ),
-    );
-  }
+          ),
+        );
+      },
+    ),
+  );
+}
 }
