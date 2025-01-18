@@ -24,6 +24,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
     return Uint8List.fromList(compressedImage);
   }
 
+  // ignore: unused_element
   Future<void> _selecionarImagem(ImageSource source) async {
     final XFile? imagemSelecionada = await _picker.pickImage(source: source);
 
@@ -56,14 +57,23 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
                     child: Text('Cancelar'),
                   ),
                   ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _imagens.remove(imagem);
-                      });
-                      Navigator.pop(context);
-                    },
-                    child: Text('Excluir', style: (TextStyle(color: Colors.red))),
+                  onPressed: () {
+                    setState(() {
+                      _imagens.remove(imagem);
+                    });
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Imagem removida com sucesso!'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Excluir',
+                    style: TextStyle(color: Colors.red),
                   ),
+                ),
                 ],
               ),
             ],
@@ -135,13 +145,44 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Entrada de Equipamento')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+ void _selecionarImagemComSnackbar(ImageSource source, BuildContext context) async {
+  final XFile? imagemSelecionada = await _picker.pickImage(source: source);
+
+  if (imagemSelecionada != null) {
+    setState(() {
+      _imagens.add(File(imagemSelecionada.path));
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Imagem adicionada com sucesso!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
+void _removerImagemComSnackbar(File imagem, BuildContext context) {
+  setState(() {
+    _imagens.remove(imagem);
+  });
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('Imagem removida com sucesso!'),
+      duration: Duration(seconds: 2),
+    ),
+  );
+}
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: Text('Entrada de Equipamento')),
+    body: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: SingleChildScrollView(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               controller: _nomeController,
@@ -166,7 +207,12 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
                     children: _imagens
                         .map((imagem) => GestureDetector(
                               onTap: () => _visualizarImagem(imagem),
-                              child: Image.file(imagem, height: 100, width: 100, fit: BoxFit.cover),
+                              child: Image.file(
+                                imagem,
+                                height: 100,
+                                width: 100,
+                                fit: BoxFit.cover,
+                              ),
                             ))
                         .toList(),
                   )
@@ -175,13 +221,15 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                ElevatedButton(
-                  onPressed: () => _selecionarImagem(ImageSource.gallery),
-                  child: Text('Galeria'),
+                ElevatedButton.icon(
+                  onPressed: () => _selecionarImagemComSnackbar(ImageSource.gallery, context),
+                  icon: Icon(Icons.photo_library),
+                  label: Text('Galeria'),
                 ),
-                ElevatedButton(
-                  onPressed: () => _selecionarImagem(ImageSource.camera),
-                  child: Text('Câmera'),
+                ElevatedButton.icon(
+                  onPressed: () => _selecionarImagemComSnackbar(ImageSource.camera, context),
+                  icon: Icon(Icons.camera_alt),
+                  label: Text('Câmera'),
                 ),
               ],
             ),
@@ -193,6 +241,7 @@ class _EntradaEquipamentoState extends State<EntradaEquipamento> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
